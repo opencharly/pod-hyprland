@@ -22,12 +22,44 @@ hyprland:
             file-capability binary cannot exec under no-new-privileges. And
             LIBSEAT_BACKEND=noop, not `none` — `none` is not a libseat backend name and
             only appears to work by inducing EINVAL.
+        require:
+            # plugin-wl serves the `wl:` check verb OUT OF PROCESS. Without this
+            # require the wl: steps below do not fail -- they SKIP with "unknown
+            # verb", which reads as not-failed in a summary. A pinned require is
+            # what makes them actually run.
+            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.240.1326'
         package:
             - hyprland
             - hyprlock
             - xorg-xwayland
             - libcap
             - grim
+        service:
+            - name: cstream-hyprland
+              exec: /usr/local/bin/hyprland-session
+              env:
+                XDG_RUNTIME_DIR: /tmp/cstream-rt
+                # The parent (gst-wayland-display) creates wayland-1. The child must be
+                # TOLD which socket to attach to -- the launcher refuses to guess, since
+                # attaching to the wrong display looks like success and streams nothing.
+                WAYLAND_DISPLAY: wayland-1
+                LIBSEAT_BACKEND: noop
+                HYPRLAND_CONFIG: /etc/cstream/hyprland.lua
+                XDG_CURRENT_DESKTOP: Hyprland
+                XDG_SESSION_TYPE: wayland
+              restart: always
+              priority: 12
+              start_sec: 2
+              enable: true
+              scope: system
+              # Hyprland ABORTS outright if the parent socket is not yet listening, so
+              # the ordering is a supervised wait on the socket rather than a sleep. As
+              # a wait_for a timeout fails the SERVICE, instead of surfacing as a
+              # Hyprland crash with a misleading cause.
+              wait_for:
+                paths:
+                    - "${XDG_RUNTIME_DIR}/wayland-1"
+                timeout: 30s
         plan:
             - run: stage the Lua config — Hyprland 0.55+ is Lua-only, hyprlang is gone
               copy: etc/hyprland.lua
