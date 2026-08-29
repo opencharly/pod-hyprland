@@ -1,0 +1,22 @@
+#!/bin/sh
+# /usr/local/bin/hyprland-session — the nested-Hyprland launcher.
+#
+# The streamer publishes WAYLAND_DISPLAY for the parent compositor. Hyprland
+# ABORTS outright if the parent socket is not yet listening, so this waits for it
+# rather than sleeping. The wait is bounded; an unbounded one would hang a bed.
+set -eu
+
+: "${WAYLAND_DISPLAY:?WAYLAND_DISPLAY is unset — the parent compositor must publish it}"
+: "${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR is unset}"
+
+sock="$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY"
+deadline=$(( $(date +%s) + 30 ))
+while [ ! -S "$sock" ]; do
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+        echo "hyprland-session: parent wayland socket $sock never appeared" >&2
+        exit 1
+    fi
+    sleep 0.1
+done
+
+exec Hyprland
