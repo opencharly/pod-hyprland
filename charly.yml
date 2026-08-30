@@ -1,7 +1,7 @@
 version: 2026.240.1943
 hyprland:
     candy:
-        version: 2026.242.0620
+        version: 2026.242.1640
         description: |
             The nested-compositor primitive: Hyprland running inside a parent Wayland
             display, with its Lua config, its session launcher, and the file-capability
@@ -33,7 +33,23 @@ hyprland:
             - hyprlock
             - xorg-xwayland
             - libcap
+            # grim + these three are the tooling the `wl:` verb shells out to on a
+            # wlroots compositor: screenshot needs grim, clipboard needs
+            # wl-clipboard (wl-copy/wl-paste over wlr-data-control), type/key-combo
+            # need wtype, resolution needs wlr-randr. Without them those verbs fail
+            # on a MISSING BINARY rather than on anything about the desktop, which
+            # is why none of them were exercised against this compositor before.
+            #
+            # NOT layer-wl-tools, which bundles them: it also brings xdotool /
+            # xorg-xprop / xorg-xwininfo (X11 on a pure-Wayland desktop), ydotool
+            # (uinput -- the evdev surface this stack deliberately does not take,
+            # see the security posture) and wlrctl (AUR, which would force the aur
+            # builder into a box that needs `pac` alone). Four unused packages and
+            # a builder, to get three.
             - grim
+            - wl-clipboard
+            - wtype
+            - wlr-randr
         service:
             - name: cstream-hyprland
               exec: /usr/local/bin/hyprland-session
@@ -129,6 +145,20 @@ hyprland:
                 echo WAITS
               stdout:
                 - contains: WAITS
+            - check: "the wl: verb's wlroots tooling is installed — each verb fails on a MISSING BINARY without it"
+              id: hypr-wl-tooling
+              exit_status: 0
+              command: |
+                # Asserted per binary, not as a package set: the failure this
+                # catches is a verb dying on `command not found` at runtime, and
+                # only the binary's presence predicts that. A package check would
+                # also pass on a rename that moved the executable.
+                for b in grim wl-copy wl-paste wtype wlr-randr; do
+                    command -v "$b" >/dev/null 2>&1 || { echo "WL-TOOL-MISSING: $b"; exit 1; }
+                done
+                echo WL-TOOLING-OK
+              stdout:
+                - contains: WL-TOOLING-OK
             - check: the Lua config targets WAYLAND-1, the nested output name
               id: hypr-config-output
               exit_status: 0
