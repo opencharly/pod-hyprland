@@ -1,7 +1,7 @@
 version: 2026.240.1943
 hyprland:
     candy:
-        version: 2026.242.1640
+        version: 2026.242.1930
         description: |
             The nested-compositor primitive: Hyprland running inside a parent Wayland
             display, with its Lua config, its session launcher, and the file-capability
@@ -66,12 +66,34 @@ hyprland:
               restart: always
               priority: 12
               start_sec: 2
-              enable: true
+              # NOT enabled. `enable:` maps to `systemctl enable` and is SYSTEMD-ONLY
+              # -- supervisord's start-at-boot is `auto_start:` (rendered as
+              # `autostart=`), which this service does not set and which therefore
+              # keeps its default. So turning this off changes the systemd venue and
+              # leaves the container venue exactly as it was.
+              #
+              # Why off: charly's ServiceCustom step STARTS what it enables, during
+              # pod-hyprland's own deploy walk -- which runs before pod-cstream
+              # installs the streamer. A nested compositor cannot survive that: it
+              # needs a parent Wayland display that does not exist yet, so the
+              # wait_for below times out and fails the whole deploy. Measured on
+              # check-cstream-vm (pod-hyprland#5).
+              #
+              # The compositor's real lifetime is a SESSION, not boot -- which is
+              # what `wanted_by: cstream-session.target` below declares.
+              enable: false
               scope: system
               # Hyprland ABORTS outright if the parent socket is not yet listening, so
               # the ordering is a supervised wait on the socket rather than a sleep. As
               # a wait_for a timeout fails the SERVICE, instead of surfacing as a
               # Hyprland crash with a misleading cause.
+              # The [Install] target. `wanted_by:` is the first-class field the
+              # systemd template's [Install] block reads -- NOT `unit_options:`,
+              # which the template renders inside [Service] where a WantedBy is
+              # silently inert (measured: the enable still went to
+              # multi-user.target.wants).
+              wanted_by:
+                - cstream-session.target
               wait_for:
                 paths:
                     - "${XDG_RUNTIME_DIR}/wayland-1"
