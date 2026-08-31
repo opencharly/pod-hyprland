@@ -1,7 +1,7 @@
 version: 2026.240.1943
 hyprland:
     candy:
-        version: 2026.242.1930
+        version: 2026.243.0158
         description: |
             The nested-compositor primitive: Hyprland running inside a parent Wayland
             display, with its Lua config, its session launcher, and the file-capability
@@ -104,6 +104,22 @@ hyprland:
               to: /etc/cstream/hyprland.lua
               mode: "0644"
               run_as: root
+            # hyprlock REFUSES TO START without a config -- it does not fall back
+            # to defaults. Measured on v0.9.6 in the pod bed:
+            #   CRIT: Config path error: Could not find config.
+            #         Searched in order: XDG_CONFIG_HOME, HOME, XDG_CONFIG_DIRS, /etc/xdg
+            # and the process exits. Shipping the hyprlock PACKAGE without this
+            # file ships a lock screen that cannot lock.
+            #
+            # /etc/xdg, not a user's ~/.config: every session must get it,
+            # including ones the broker creates for accounts with no dotfiles.
+            # A user config still wins -- XDG_CONFIG_HOME and HOME are searched
+            # first.
+            - run: stage the hyprlock config
+              copy: etc/hyprlock.conf
+              to: /etc/xdg/hypr/hyprlock.conf
+              mode: "0644"
+              run_as: root
             - run: stage the session launcher
               copy: etc/hyprland-session
               to: /usr/local/bin/hyprland-session
@@ -153,6 +169,24 @@ hyprland:
                 rm -rf "$d"
               stdout:
                 - contains: Hyprland
+            - check: hyprlock has a config, without which it exits instead of locking
+              id: hypr-lock-config
+              exit_status: 0
+              command: |
+                # Asserting the file AND that hyprlock's own search order reaches
+                # it. The binary being installed proves nothing: measured, a
+                # config-less hyprlock prints "Config path error" and dies, so a
+                # package-only check would pass on a lock screen that cannot lock.
+                test -f /etc/xdg/hypr/hyprlock.conf || {
+                    echo "HYPRLOCK-CONFIG-MISSING: hyprlock will exit with 'Config path error'" >&2; exit 1; }
+                # the two blocks hyprlock needs to render at all
+                for want in background input-field; do
+                    grep -q "^$want" /etc/xdg/hypr/hyprlock.conf || {
+                        echo "HYPRLOCK-CONFIG-INCOMPLETE: no $want block" >&2; exit 1; }
+                done
+                echo HYPRLOCK-CONFIG-OK
+              stdout:
+                - contains: HYPRLOCK-CONFIG-OK
             - check: the session launcher execs Hyprland rather than backgrounding it
               id: hypr-launcher-exec
               exit_status: 0
