@@ -27,7 +27,7 @@ hyprland:
             # require the wl: steps below do not fail -- they SKIP with "unknown
             # verb", which reads as not-failed in a summary. A pinned require is
             # what makes them actually run.
-            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.243.1001'
+            - '@github.com/opencharly/plugin-wl/candy/plugin-wl:v2026.243.1401'
         package:
             - hyprland
             - hyprlock
