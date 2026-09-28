@@ -1,7 +1,5 @@
-version: 2026.240.1943
 hyprland:
     candy:
-        version: 2026.243.1018
         description: |
             The nested-compositor primitive: Hyprland running inside a parent Wayland
             display, with its Lua config, its session launcher, and the file-capability
